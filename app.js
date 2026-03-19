@@ -2291,3 +2291,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
   // else: no Supabase — auth screen stays visible, demo login works
 });
+async function handleGoogleLogin() {
+  if (!db) { showToast('Supabase not configured'); return; }
+
+  const { error } = await db.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo: window.location.href  // sends back to your current page
+    }
+  });
+
+  if (error) showToast('Google sign-in failed: ' + error.message);
+}
