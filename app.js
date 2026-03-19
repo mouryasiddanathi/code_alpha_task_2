@@ -1,5 +1,5 @@
-SUPABASE_URL = 'https://aaaedmndjoqvaueznvyf.supabase.co';
-SUPABASE_ANON_KEY ='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFhYWVkbW5kam9xdmF1ZXpudnlmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5MjQ4NzUsImV4cCI6MjA4OTUwMDg3NX0.7DPrnnT72E6BOYStpyGxXChHMG-l-jxv0XP46JUvixo';
+SUPABASE_URL = 'https://https://aaaedmndjoqvaueznvyf.supabase.co';
+SUPABASE_ANON_KEY ='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFhYWVkbW5kam9xdmF1ZXpudnlmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5MjQ4NzUsImV4cCI6MjA4OTUwMDg3NX0.7DPrnnT72E6BOYStpyGxXChHMG-l-jxv0XP46JUvixo.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFhYWVkbW5kam9xdmF1ZXpudnlmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5MjQ4NzUsImV4cCI6MjA4OTUwMDg3NX0.7DPrnnT72E6BOYStpyGxXChHMG-l-jxv0XP46JUvixo';
 // Guard: only initialise if the CDN has loaded and real keys are configured
 const db = (
   typeof window !== 'undefined' &&
@@ -2126,3 +2126,168 @@ if (db) {
     )
     .subscribe();
 }
+// ─── AUTH SCREEN LOGIC ────────────────────────────────────────────────────────
+
+function switchAuthTab(tab) {
+  ['login','signup','success'].forEach(t => {
+    document.getElementById(t+'Form').classList.toggle('hidden', t !== tab);
+  });
+  document.getElementById('loginTabBtn').classList.toggle('active', tab === 'login');
+  document.getElementById('signupTabBtn').classList.toggle('active', tab === 'signup');
+  // Clear errors on switch
+  document.querySelectorAll('.auth-input').forEach(el => el.classList.remove('error'));
+}
+
+function toggleAuthPw(id, btn) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.type = el.type === 'password' ? 'text' : 'password';
+  btn.textContent = el.type === 'password' ? '👁️' : '🙈';
+}
+
+function checkSignupStrength(val) {
+  const score = [val.length >= 8, /[A-Z]/.test(val), /[0-9]/.test(val), /[^A-Za-z0-9]/.test(val)].filter(Boolean).length;
+  const fill  = document.getElementById('signup-strength-fill');
+  const label = document.getElementById('signup-strength-label');
+  if (!fill || !label) return;
+  fill.style.width      = `${(score / 4) * 100}%`;
+  fill.style.background = ['#fc5c5c','#fc9c5c','#f7c948','#5cf0c8'][score - 1] || '#fc5c5c';
+  label.textContent     = score ? ['Weak','Fair','Good','Strong'][score - 1] : '';
+}
+
+function setAuthLoading(btnId, loaderId, on) {
+  const btn = document.getElementById(btnId);
+  if (btn) btn.classList.toggle('loading', on);
+  if (btn) btn.disabled = on;
+}
+
+function markError(id) {
+  const el = document.getElementById(id);
+  if (el) { el.classList.add('error'); el.focus(); }
+}
+
+async function handleLogin() {
+  const email    = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+
+  if (!email)    { markError('login-email');    showToast('Please enter your email ⚠️'); return; }
+  if (!password) { markError('login-password'); showToast('Please enter your password ⚠️'); return; }
+
+  // Remove previous errors
+  ['login-email','login-password'].forEach(id => document.getElementById(id)?.classList.remove('error'));
+
+  if (!db) {
+    // No Supabase — demo mode: just hide auth screen
+    showToast('Signed in (demo mode) ✓');
+    hideAuthScreen();
+    return;
+  }
+
+  setAuthLoading('loginBtn', 'loginLoader', true);
+  const { error } = await db.auth.signInWithPassword({ email, password });
+  setAuthLoading('loginBtn', 'loginLoader', false);
+
+  if (error) {
+    showToast('Login failed: ' + error.message + ' ⚠️');
+    markError('login-password');
+    return;
+  }
+  showToast('Welcome back! 🎉');
+  hideAuthScreen();
+  await loadCurrentUser();
+}
+
+async function handleSignup() {
+  const name     = document.getElementById('signup-name').value.trim();
+  const handle   = document.getElementById('signup-handle').value.trim().replace(/^@/, '');
+  const email    = document.getElementById('signup-email').value.trim();
+  const password = document.getElementById('signup-password').value;
+  const terms    = document.getElementById('signup-terms').checked;
+
+  if (!name)     { markError('signup-name');     showToast('Please enter your name ⚠️'); return; }
+  if (!handle)   { markError('signup-handle');   showToast('Please enter a username ⚠️'); return; }
+  if (!email)    { markError('signup-email');     showToast('Please enter your email ⚠️'); return; }
+  if (password.length < 8) { markError('signup-password'); showToast('Password must be at least 8 characters ⚠️'); return; }
+  if (!terms)    { showToast('Please accept the Terms of Service ⚠️'); return; }
+
+  ['signup-name','signup-handle','signup-email','signup-password'].forEach(id =>
+    document.getElementById(id)?.classList.remove('error'));
+
+  if (!db) {
+    showToast('Account created (demo mode) ✓');
+    switchAuthTab('success');
+    return;
+  }
+
+  setAuthLoading('signupBtn', 'signupLoader', true);
+  const { data, error } = await db.auth.signUp({
+    email, password,
+    options: { data: { name, handle, avatar: name[0].toUpperCase() } }
+  });
+  setAuthLoading('signupBtn', 'signupLoader', false);
+
+  if (error) { showToast('Sign up failed: ' + error.message + ' ⚠️'); return; }
+
+  // Insert profile row manually as fallback (trigger may handle it too)
+  if (data?.user) {
+    await db.from('profiles').upsert({
+      id: data.user.id, name, handle: '@' + handle, avatar: name[0].toUpperCase()
+    });
+  }
+
+  switchAuthTab('success');
+}
+
+async function handleForgotPassword() {
+  const email = document.getElementById('login-email').value.trim();
+  if (!email) { markError('login-email'); showToast('Enter your email first ⚠️'); return; }
+  if (!db)    { showToast('Password reset email sent! (demo mode)'); return; }
+  const { error } = await db.auth.resetPasswordForEmail(email);
+  if (error) { showToast('Error: ' + error.message); return; }
+  showToast('Password reset email sent ✉️');
+}
+
+function hideAuthScreen() {
+  const el = document.getElementById('authScreen');
+  if (el) {
+    el.style.opacity = '0';
+    el.style.transform = 'scale(1.04)';
+    el.style.transition = 'opacity 0.4s ease, transform 0.4s ease';
+    setTimeout(() => el.classList.add('hidden'), 400);
+  }
+}
+
+function showAuthScreen() {
+  const el = document.getElementById('authScreen');
+  if (el) {
+    el.classList.remove('hidden');
+    el.style.opacity = '';
+    el.style.transform = '';
+    el.style.transition = '';
+  }
+}
+
+// ─── SIGN-OUT (update existing logOut) ───────────────────────────────────────
+async function logOut() {
+  if (db) await db.auth.signOut();
+  showAuthScreen();
+  switchAuthTab('login');
+  showToast('Signed out successfully');
+}
+
+// ─── BOOT: check session on load ─────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', async () => {
+  if (db) {
+    const { data: { session } } = await db.auth.getSession();
+    if (session) {
+      hideAuthScreen();
+      await loadCurrentUser();
+    }
+    // Listen for auth state changes (email confirmation etc.)
+    db.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session) { hideAuthScreen(); }
+      if (event === 'SIGNED_OUT')            { showAuthScreen(); }
+    });
+  }
+  // else: no Supabase — auth screen stays visible, demo login works
+});
