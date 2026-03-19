@@ -1,5 +1,5 @@
-
-
+SUPABASE_URL = 'https://aaaedmndjoqvaueznvyf.supabase.co';
+SUPABASE_ANON_KEY ='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFhYWVkbW5kam9xdmF1ZXpudnlmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5MjQ4NzUsImV4cCI6MjA4OTUwMDg3NX0.7DPrnnT72E6BOYStpyGxXChHMG-l-jxv0XP46JUvixo';
 // Guard: only initialise if the CDN has loaded and real keys are configured
 const db = (
   typeof window !== 'undefined' &&
@@ -2106,3 +2106,23 @@ document.addEventListener("keydown", e => {
 document.addEventListener("DOMContentLoaded", async () => {
   await loadCurrentUser(); // no-op when db === null
 });
+async function signUp(email, password, name, handle) {
+  const { data, error } = await db.auth.signUp({
+    email, password,
+    options: {
+      data: { name, handle, avatar: name[0].toUpperCase() }
+    }
+  });
+  if (error) { showToast('Sign up failed: ' + error.message); return; }
+}
+document.addEventListener("DOMContentLoaded", async () => {
+  await loadCurrentUser();
+  await loadPosts(); // fetches from Supabase instead of POSTS_DATA
+});
+if (db) {
+  db.channel('public:posts')
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' },
+      () => loadPosts()
+    )
+    .subscribe();
+}
