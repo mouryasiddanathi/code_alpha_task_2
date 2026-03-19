@@ -1,49 +1,116 @@
-// ─── DATA ────────────────────────────────────────────────────────────────────
 
+
+// Guard: only initialise if the CDN has loaded and real keys are configured
+const db = (
+  typeof window !== 'undefined' &&
+  window.supabase &&
+  SUPABASE_URL !== 'https://your-project-id.supabase.co'
+)
+  ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+  : null;
+//
+// Sign up
+async function signUp(email, password, name, handle) {
+  if (!db) { showToast('Supabase not configured'); return; }
+  const { data, error } = await db.auth.signUp({ email, password });
+  if (error) { showToast('Sign up failed: ' + error.message); return; }
+
+  // Create the profile row
+  await db.from('profiles').insert({
+    id: data.user.id,
+    name, handle, avatar: name[0].toUpperCase()
+  });
+}
+
+// Log in
+async function logIn(email, password) {
+  if (!db) { showToast('Supabase not configured'); return; }
+  const { error } = await db.auth.signInWithPassword({ email, password });
+  if (error) showToast('Login failed: ' + error.message);
+}
+
+// Log out
+async function logOut() {
+  if (!db) { showToast('Supabase not configured'); return; }
+  await db.auth.signOut();
+}
+
+// Get current user on page load
+async function loadCurrentUser() {
+  if (!db) return; // fall back to hardcoded ownProfile
+  const { data: { user } } = await db.auth.getUser();
+  if (!user) return;
+  // Pull the email from the auth session
+  ownProfile.email = user.email || "";
+  const { data: profile } = await db.from('profiles').select('*').eq('id', user.id).single();
+  if (profile) ownProfile = { ...ownProfile, ...profile, email: user.email || "" };
+}
+//
 const POSTS_DATA = [
   {
-    id: 1,
-    name: "Maya Chen", handle: "@mayachen", avatar: "M",
-    grad: "135deg, #5cf0c8, #5c9cfc", time: "2m ago",
-    body: "Just shipped a new design system that cuts our component build time by 60%. The secret? Ruthless consistency and a solid token architecture. Thread incoming 🧵 #DesignSystems #Frontend",
-    likes: 284, comments: 42, reposts: 31, liked: false, showComments: false,
-    commentList: [
-      { name: "Jordan K.", avatar: "J", grad: "135deg, #fc5c8a, #fc9c5c", text: "This is exactly what we needed. Would love to see the thread!" },
-      { name: "Sam Dev",   avatar: "S", grad: "135deg, #7c5cfc, #5cf0c8", text: "Token architecture is underrated. Glad more teams are investing in it." }
-    ],
-    image: null
+    id: 1, name: "Alex Rivera", handle: "@alexrivera", avatar: "A",
+    grad: "135deg, #7c5cfc, #fc5c8a", time: "2m ago",
+    body: "Just shipped a new design system that actually scales. The secret? Treat tokens as a contract between design and code, not just variables. #DesignSystems #BuildInPublic",
+    likes: 84, comments: 12, reposts: 19, liked: false, showComments: false, commentList: [], image: null
   },
   {
-    id: 2,
-    name: "Jordan Kim", handle: "@jordankim", avatar: "J",
+    id: 2, name: "Jordan Kim", handle: "@jordankim", avatar: "J",
     grad: "135deg, #fc5c8a, #fc9c5c", time: "18m ago",
-    body: "Hot take: the best productivity hack isn't a new app or framework. It's learning to say no to features that don't serve your users. Shipped less, impact doubled. #ProductThinking #BuildInPublic",
-    likes: 512, comments: 78, reposts: 95, liked: false, showComments: false,
-    commentList: [
-      { name: "Alex Rivera", avatar: "A", grad: "135deg, #7c5cfc, #fc5c8a", text: "100% agree. Scope creep is the silent killer of good products." }
-    ],
-    image: null
+    body: "Hot take: the best productivity hack is ruthless scope reduction. You don't need a better todo app — you need fewer todos. #ProductThinking",
+    likes: 217, comments: 34, reposts: 58, liked: false, showComments: false, commentList: [], image: null
   },
   {
-    id: 3,
-    name: "Sam Okafor", handle: "@samokafor", avatar: "S",
+    id: 3, name: "Sam Okafor", handle: "@samokafor", avatar: "S",
     grad: "135deg, #7c5cfc, #5cf0c8", time: "1h ago",
-    body: "Reminder that dark mode isn't just an aesthetic preference — for many users with visual sensitivities, it's accessibility. Design with intention. 🌙 #A11y #UXDesign",
-    likes: 1023, comments: 114, reposts: 210, liked: true, showComments: false,
-    commentList: [], image: "🌙"
+    body: "Dark mode is an accessibility issue, not just a vibe. High contrast matters for people with visual impairments. Design with empathy first. #A11y #UXDesign",
+    likes: 412, comments: 61, reposts: 103, liked: true, showComments: false, commentList: [], image: null
   },
   {
-    id: 4,
-    name: "Priya Nair", handle: "@priyanair", avatar: "P",
-    grad: "135deg, #f7c948, #fc5c8a", time: "3h ago",
-    body: "I've been learning Rust for 3 months now. My brain has been fully rewired. Memory safety isn't just a feature — it's a mindset shift. #Rust #Programming",
-    likes: 349, comments: 56, reposts: 44, liked: false, showComments: false,
-    commentList: [
-      { name: "Maya Chen", avatar: "M", grad: "135deg, #5cf0c8, #5c9cfc", text: "The borrow checker broke me at first but now I can't go back 😅" }
-    ],
-    image: null
-  }
+    id: 4, name: "Maya Chen", handle: "@mayachen", avatar: "M",
+    grad: "135deg, #5cf0c8, #5c9cfc", time: "3h ago",
+    body: "Spent the afternoon refactoring a component I wrote six months ago. Past me owed present me an apology and a coffee. ☕ #Frontend #CleanCode",
+    likes: 156, comments: 22, reposts: 37, liked: false, showComments: false, commentList: [], image: null
+  },
+  {
+    id: 5, name: "Priya Nair", handle: "@priyanair", avatar: "P",
+    grad: "135deg, #f7c948, #fc5c8a", time: "5h ago",
+    body: "Rust ownership clicked for me when I stopped thinking about memory and started thinking about responsibility. Who owns this value? Who's responsible for cleaning it up? #Rust #Systems",
+    likes: 298, comments: 45, reposts: 72, liked: false, showComments: false, commentList: [], image: null
+  },
 ];
+
+// ─── SUPABASE FUNCTIONS ───────────────────────────────────────────────────────
+
+// Load all posts (for the "For You" feed)
+async function loadPosts() {
+  if (!db) return; // use local POSTS_DATA when not configured
+  const { data, error } = await db
+    .from('posts')
+    .select('*, profiles(name, handle, avatar)')
+    .order('created_at', { ascending: false });
+
+  if (error) { showToast('Could not load posts'); return; }
+  renderPosts(data); // pass to your existing render function
+}
+
+// Create a new post
+async function createPost(body) {
+  if (!db) return;
+  const { data: { user } } = await db.auth.getUser();
+  const { error } = await db.from('posts').insert({ user_id: user.id, body });
+  if (error) { showToast('Could not post'); return; }
+  loadPosts(); // refresh feed
+}
+
+// Like a post
+async function likePost(postId) {
+  if (!db) return;
+  const { data: { user } } = await db.auth.getUser();
+  await db.from('likes').upsert({ user_id: user.id, post_id: postId });
+  // Also increment the counter
+  await db.rpc('increment_likes', { post_id: postId });
+}
+
 
 const SUGGESTIONS_DATA = [
   { name: "Priya Nair",  handle: "@priyanair",  avatar: "P", grad: "135deg, #f7c948, #fc5c8a", bio: "Rust & systems engineer",  followers: 3820, following: 190, posts: 204, followed: false },
@@ -148,6 +215,7 @@ let ownProfile = {
   bio: "Designer & developer. Building things that matter. Coffee enthusiast ☕",
   avatar: "A", grad: "135deg, #7c5cfc, #fc5c8a",
   followers: 1248, following: 312, posts: 87,
+  email: "",
   location: "", website: "", dob: "", occupation: "",
   twitter: "", linkedin: "", github: "",
   isPrivate: false, showOnline: true, allowDMs: true
@@ -938,7 +1006,7 @@ function buildSettingsPanel(section) {
         <div class="settings-row">
           <div class="settings-row-text">
             <div class="settings-row-label">Email Address</div>
-            <div class="settings-row-desc">alex@example.com · <span style="color:var(--accent3)">Verified ✓</span></div>
+            <div class="settings-row-desc">${ownProfile.email || 'No email set'} · <span style="color:var(--accent3)">Verified ✓</span></div>
           </div>
           <button class="settings-action-btn" onclick="openChangeEmail()">Change</button>
         </div>
@@ -1358,18 +1426,23 @@ function showBackupCodes() {
 }
 
 function requestDataExport() {
-  showToast("Export request submitted — check alex@example.com in 24h 📦");
+  const email = ownProfile.email || 'your email';
+  showToast(`Export request submitted — check ${email} in 24h 📦`);
 }
 
 function clearCache() {
   showToast("Cache cleared (24 MB freed) ✓");
 }
 
-function openChangeEmail() {
+async function openChangeEmail() {
   const newEmail = prompt("Enter your new email address:");
-  if (newEmail && newEmail.includes("@")) {
-    showToast(`Verification sent to ${newEmail}`);
+  if (!newEmail || !newEmail.includes("@")) return;
+  if (db) {
+    const { error } = await db.auth.updateUser({ email: newEmail });
+    if (error) { showToast("Email update failed: " + error.message); return; }
   }
+  ownProfile.email = newEmail;
+  showToast(`Verification sent to ${newEmail} ✉️`);
 }
 
 
@@ -1773,7 +1846,7 @@ function openProfileModal(user) {
     <button class="profile-option-btn" onclick="openPrivacySettings()"><span class="opt-icon">🛡️</span> Privacy & Safety</button>
     <button class="profile-option-btn" onclick="goToSettings()"><span class="opt-icon">⚙️</span> Settings</button>
     <button class="profile-option-btn" onclick="goToBookmarks()"><span class="opt-icon">🔖</span> Saved Posts</button>
-    <button class="profile-option-btn danger" onclick="showToast('Signed out (demo only)')"><span class="opt-icon">🚪</span> Log Out</button>` : "";
+    <button class="profile-option-btn danger" onclick="logOut().then(()=>{ showToast('Signed out'); location.reload(); })"><span class="opt-icon">🚪</span> Log Out</button>` : "";
 
   document.getElementById("profileModal").classList.add("open");
 }
@@ -1856,7 +1929,7 @@ function closeEditModal(e) {
     document.getElementById("editProfileModal").classList.remove("open");
 }
 
-function saveProfile() {
+async function saveProfile() {
   const f   = id => document.getElementById(id);
   const raw = f("ep-handle").value.trim();
   ownProfile.name       = f("ep-name").value.trim()     || ownProfile.name;
@@ -1879,6 +1952,29 @@ function saveProfile() {
   if (spHandle) spHandle.textContent = ownProfile.handle;
   if (spAvatar) spAvatar.textContent = ownProfile.avatar;
   f("editProfileModal").classList.remove("open");
+  // Persist to Supabase if configured
+  if (db) {
+    const { data: { user } } = await db.auth.getUser();
+    if (user) {
+      const { error } = await db.from('profiles').upsert({
+        id: user.id,
+        name:       ownProfile.name,
+        handle:     ownProfile.handle,
+        bio:        ownProfile.bio,
+        location:   ownProfile.location,
+        website:    ownProfile.website,
+        dob:        ownProfile.dob,
+        occupation: ownProfile.occupation,
+        twitter:    ownProfile.twitter,
+        linkedin:   ownProfile.linkedin,
+        github:     ownProfile.github,
+        is_private: ownProfile.isPrivate,
+        show_online: ownProfile.showOnline,
+        allow_dms:  ownProfile.allowDMs,
+      });
+      if (error) { showToast('Profile save error: ' + error.message); return; }
+    }
+  }
   showToast("Profile saved ✓");
 }
 
@@ -1902,13 +1998,23 @@ function closePasswordModal(e) {
     document.getElementById("changePasswordModal").classList.remove("open");
 }
 
-function savePassword() {
+async function savePassword() {
   const current = document.getElementById("pw-current").value;
   const newPw   = document.getElementById("pw-new").value;
   const confirm = document.getElementById("pw-confirm").value;
   if (!current)          { showToast("Enter your current password ⚠️"); return; }
   if (newPw.length < 8)  { showToast("Password must be at least 8 characters ⚠️"); return; }
   if (newPw !== confirm)  { showToast("Passwords don't match ⚠️"); return; }
+  // Re-authenticate then update via Supabase
+  if (db) {
+    // Verify current password by re-signing in
+    const { error: signInErr } = await db.auth.signInWithPassword({
+      email: ownProfile.email, password: current
+    });
+    if (signInErr) { showToast("Current password is incorrect ⚠️"); return; }
+    const { error: updateErr } = await db.auth.updateUser({ password: newPw });
+    if (updateErr) { showToast("Password update failed: " + updateErr.message); return; }
+  }
   document.getElementById("changePasswordModal").classList.remove("open");
   showToast("Password updated 🔒");
 }
@@ -1992,4 +2098,11 @@ document.addEventListener("keydown", e => {
     const navEl = document.querySelector('[data-page="home"]');
     if (navEl) { setPage("home", navEl); setTimeout(() => document.getElementById("postInput")?.focus(), 100); }
   }
+});
+
+// ─── BOOTSTRAP ────────────────────────────────────────────────────────────────
+// Runs once after DOMContentLoaded to hydrate profile from Supabase if configured.
+// The app works fully with local data if Supabase is not yet set up.
+document.addEventListener("DOMContentLoaded", async () => {
+  await loadCurrentUser(); // no-op when db === null
 });
