@@ -1689,6 +1689,8 @@ body.high-contrast {
   justify-content: center;
   background: var(--bg);
   overflow: hidden;
+  opacity: 1;
+  transition: opacity 0.4s ease, transform 0.4s ease;
 }
 .auth-screen.hidden { display: none; }
 
@@ -1990,10 +1992,11 @@ body.high-contrast {
   border-top-color: #fff;
   border-radius: 50%;
   display: none;
+  flex-shrink: 0;
   animation: spin 0.6s linear infinite;
 }
 .auth-btn.loading .auth-btn-text { opacity: 0.5; }
-.auth-btn.loading .auth-btn-loader { display: block; }
+.auth-btn.loading .auth-btn-loader { display: inline-block; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* Divider */

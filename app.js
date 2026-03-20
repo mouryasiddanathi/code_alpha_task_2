@@ -278,11 +278,17 @@ document.addEventListener("DOMContentLoaded", async () => {
       hideAuthScreen();
       await loadCurrentUser();
       await loadPosts();
+    } else {
+      // Supabase configured but no active session — show login
+      showAuthScreen();
     }
     db.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_IN' && session) { hideAuthScreen(); }
       if (event === 'SIGNED_OUT')            { showAuthScreen(); }
     });
+  } else {
+    // No Supabase configured — show auth screen for demo login
+    showAuthScreen();
   }
 });
 
@@ -2130,11 +2136,14 @@ if (db) {
 
 function switchAuthTab(tab) {
   ['login','signup','success'].forEach(t => {
-    document.getElementById(t+'Form').classList.toggle('hidden', t !== tab);
+    const form = document.getElementById(t+'Form');
+    if (form) form.classList.toggle('hidden', t !== tab);
   });
-  document.getElementById('loginTabBtn').classList.toggle('active', tab === 'login');
-  document.getElementById('signupTabBtn').classList.toggle('active', tab === 'signup');
-  // Clear errors on switch
+  const loginBtn  = document.getElementById('loginTabBtn');
+  const signupBtn = document.getElementById('signupTabBtn');
+  if (loginBtn)  loginBtn.classList.toggle('active',  tab === 'login');
+  if (signupBtn) signupBtn.classList.toggle('active', tab === 'signup');
+  // Clear all error states on tab switch
   document.querySelectorAll('.auth-input').forEach(el => el.classList.remove('error'));
 }
 
@@ -2150,15 +2159,18 @@ function checkSignupStrength(val) {
   const fill  = document.getElementById('signup-strength-fill');
   const label = document.getElementById('signup-strength-label');
   if (!fill || !label) return;
+  const colors = ['#fc5c5c','#fc9c5c','#f7c948','#5cf0c8'];
+  const labels = ['Weak','Fair','Good','Strong'];
   fill.style.width      = `${(score / 4) * 100}%`;
-  fill.style.background = ['#fc5c5c','#fc9c5c','#f7c948','#5cf0c8'][score - 1] || '#fc5c5c';
-  label.textContent     = score ? ['Weak','Fair','Good','Strong'][score - 1] : '';
+  fill.style.background = score > 0 ? (colors[score - 1] || '#fc5c5c') : 'var(--border)';
+  label.textContent     = score > 0 ? (labels[score - 1] || '') : '';
 }
 
 function setAuthLoading(btnId, loaderId, on) {
-  const btn = document.getElementById(btnId);
-  if (btn) btn.classList.toggle('loading', on);
-  if (btn) btn.disabled = on;
+  const btn    = document.getElementById(btnId);
+  const loader = document.getElementById(loaderId);
+  if (btn)    { btn.classList.toggle('loading', on); btn.disabled = on; }
+  if (loader) { loader.style.display = on ? 'block' : 'none'; }
 }
 
 function markError(id) {
@@ -2167,14 +2179,17 @@ function markError(id) {
 }
 
 async function handleLogin() {
-  const email    = document.getElementById('login-email').value.trim();
-  const password = document.getElementById('login-password').value;
+  const emailEl    = document.getElementById('login-email');
+  const passwordEl = document.getElementById('login-password');
+  const email      = emailEl?.value.trim() || '';
+  const password   = passwordEl?.value || '';
+
+  // Clear previous error states
+  emailEl?.classList.remove('error');
+  passwordEl?.classList.remove('error');
 
   if (!email)    { markError('login-email');    showToast('Please enter your email ⚠️'); return; }
   if (!password) { markError('login-password'); showToast('Please enter your password ⚠️'); return; }
-
-  // Remove previous errors
-  ['login-email','login-password'].forEach(id => document.getElementById(id)?.classList.remove('error'));
 
   if (!db) {
     // No Supabase — demo mode: just hide auth screen
@@ -2189,6 +2204,7 @@ async function handleLogin() {
 
   if (error) {
     showToast('Login failed: ' + error.message + ' ⚠️');
+    markError('login-email');
     markError('login-password');
     return;
   }
@@ -2261,9 +2277,11 @@ function showAuthScreen() {
   const el = document.getElementById('authScreen');
   if (el) {
     el.classList.remove('hidden');
-    el.style.opacity = '';
-    el.style.transform = '';
+    el.style.opacity   = '1';
+    el.style.transform = 'scale(1)';
     el.style.transition = '';
+    // Ensure login tab is active when showing
+    switchAuthTab('login');
   }
 }
 
