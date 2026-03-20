@@ -1,5 +1,5 @@
 const SUPABASE_URL = 'https://aaaedmndjoqvaueznvyf.supabase.co';
-const SUPABASE_ANON_KEY ='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFhYWVkbW5kam9xdmF1ZXpudnlmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5MjQ4NzUsImV4cCI6MjA4OTUwMDg3NX0.7DPrnnT72E6BOYStpyGxXChHMG-l-jxv0XP46JUvixo';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFhYWVkbW5kam9xdmF1ZXpudnlmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5MjQ4NzUsImV4cCI6MjA4OTUwMDg3NX0.7DPrnnT72E6BOYStpyGxXChHMG-l-jxv0XP46JUvixo';
 // Guard: only initialise if the CDN has loaded and real keys are configured
 const db = (
   typeof window !== 'undefined' &&
@@ -260,13 +260,30 @@ document.addEventListener("DOMContentLoaded", () => {
   renderTrending();
   renderSuggestions();
   initCharCounters();
-  syncMsgBadge();   // set initial badge from MSG_DATA unread counts
+  syncMsgBadge();
   // Close context menus when clicking elsewhere
   document.addEventListener("click", e => {
     if (!e.target.closest(".post-menu-popup") && !e.target.closest(".post-more")) {
       closePostMenus();
     }
   });
+});
+
+// Supabase bootstrap — runs after the sync init above
+document.addEventListener("DOMContentLoaded", async () => {
+  await loadCurrentUser();
+  if (db) {
+    const { data: { session } } = await db.auth.getSession();
+    if (session) {
+      hideAuthScreen();
+      await loadCurrentUser();
+      await loadPosts();
+    }
+    db.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session) { hideAuthScreen(); }
+      if (event === 'SIGNED_OUT')            { showAuthScreen(); }
+    });
+  }
 });
 
 function initCharCounters() {
@@ -527,11 +544,11 @@ function renderHome() {
 
 // ─── POSTS ────────────────────────────────────────────────────────────────────
 
+// renderPosts is kept for backward compatibility (e.g. called after loadPosts())
+// and simply delegates to renderForYouFeed.
 function renderPosts() {
-  const c = document.getElementById("posts-container");
-  if (!c) return;
-  c.innerHTML = "";
-  posts.forEach(p => c.insertAdjacentHTML("beforeend", buildPostHTML(p)));
+  if (activeTab === 'following') renderFollowingFeed();
+  else renderForYouFeed();
 }
 
 function buildPostHTML(post, inBookmarks = false) {
@@ -1933,6 +1950,7 @@ async function saveProfile() {
   const f   = id => document.getElementById(id);
   const raw = f("ep-handle").value.trim();
   ownProfile.name       = f("ep-name").value.trim()     || ownProfile.name;
+  ownProfile.avatar     = ownProfile.name[0].toUpperCase();
   ownProfile.handle     = raw ? `@${raw.replace(/^@/,"")}` : ownProfile.handle;
   ownProfile.bio        = f("ep-bio").value.trim();
   ownProfile.location   = f("ep-location").value.trim();
@@ -2100,25 +2118,7 @@ document.addEventListener("keydown", e => {
   }
 });
 
-// ─── BOOTSTRAP ────────────────────────────────────────────────────────────────
-// Runs once after DOMContentLoaded to hydrate profile from Supabase if configured.
-// The app works fully with local data if Supabase is not yet set up.
-document.addEventListener("DOMContentLoaded", async () => {
-  await loadCurrentUser(); // no-op when db === null
-});
-async function signUp(email, password, name, handle) {
-  const { data, error } = await db.auth.signUp({
-    email, password,
-    options: {
-      data: { name, handle, avatar: name[0].toUpperCase() }
-    }
-  });
-  if (error) { showToast('Sign up failed: ' + error.message); return; }
-}
-document.addEventListener("DOMContentLoaded", async () => {
-  await loadCurrentUser();
-  await loadPosts(); // fetches from Supabase instead of POSTS_DATA
-});
+// Real-time post subscription
 if (db) {
   db.channel('public:posts')
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' },
@@ -2275,22 +2275,6 @@ async function logOut() {
   showToast('Signed out successfully');
 }
 
-// ─── BOOT: check session on load ─────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', async () => {
-  if (db) {
-    const { data: { session } } = await db.auth.getSession();
-    if (session) {
-      hideAuthScreen();
-      await loadCurrentUser();
-    }
-    // Listen for auth state changes (email confirmation etc.)
-    db.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_IN' && session) { hideAuthScreen(); }
-      if (event === 'SIGNED_OUT')            { showAuthScreen(); }
-    });
-  }
-  // else: no Supabase — auth screen stays visible, demo login works
-});
 async function handleGoogleLogin() {
   if (!db) { showToast('Supabase not configured'); return; }
 
